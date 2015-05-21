@@ -144,6 +144,7 @@ class AuthoringMethodMixin(object):
 def guiJSONimport(transformer,
                   author_view,
                   importer_class,
+                  validator_class,
                   jsn,
                   namespace_info,
                   authored_data_name,
@@ -215,7 +216,7 @@ def guiJSONimport(transformer,
         xml = t.getStix()
 
         try:
-            etree.fromstring(xml)
+            parsed_xml = etree.fromstring(xml)
         except Exception, e:
             malformed_xml_warning = "Malformed XML: " + str(e)
     except Exception,e:
@@ -229,6 +230,17 @@ def guiJSONimport(transformer,
         result['status'] = False
         result['msg'] += "XML could not be created."
         result['msg'] = result['msg'] + " (" + malformed_xml_warning + ")"
+        result['status'] = False
+        return result
+
+    validator = validator_class(parsed_xml)
+
+    if not validator.is_valid:
+        result['msg'] = "The generated XML didn't pass the validation."
+        logger.error("%s occurred." % (validator.get_error_class))
+        for error in validator.errors:
+            logger.error("line: %s - %s" % (error.line, error.message))
+
         result['status'] = False
         return result
 
@@ -289,6 +301,7 @@ class BasicProcessingView(AuthoringMethodMixin,BasicView):
     importer_class = None
     author_view = None
     transformer = None
+    validator_class = None
 
     def post(self, request, *args, **kwargs):
         res = {
@@ -351,6 +364,7 @@ class BasicProcessingView(AuthoringMethodMixin,BasicView):
                         guiJSONimport(self.transformer,
                                       self.author_view,
                                       self.importer_class,
+                                      self.validator_class,
                                       jsn,
                                       namespace_info,
                                       submit_name,
